@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProfilDataService - Documentation</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background:#121212; color:#e0e0e0; margin:0; }
+  header { background:#1f1f1f; padding:1rem; text-align:center; border-bottom:2px solid #2c2c2c; }
+  header h1 { color:#ff9800; margin:0; }
+  nav { background:#1a1a1a; display:flex; justify-content:center; flex-wrap:wrap; border-bottom:1px solid #2c2c2c; }
+  nav a { color:#e0e0e0; text-decoration:none; padding:1rem 2rem; display:inline-block; }
+  nav a:hover { background:#333; color:#ff9800; }
+  main { max-width:1000px; margin:2rem auto; padding:0 2rem; }
+  section { margin-bottom:3rem; }
+  h2 { color:#ff9800; margin-bottom:1rem; }
+  code { background:#1a1a1a; padding:0.2rem 0.4rem; border-radius:4px; display:inline-block; color:#80cbc4; }
+  pre { background:#1a1a1a; padding:1rem; border-radius:8px; overflow-x:auto; color:#c5c5c5; }
+  ul { padding-left:1.5rem; }
+  footer { text-align:center; padding:2rem; border-top:2px solid #2c2c2c; color:#888; }
+  .highlight { color:#ff9800; }
+  a.button { display:inline-block; background:#ff9800; color:#121212; padding:10px 20px; text-decoration:none; border-radius:5px; margin-top:10px; }
+  a.button:hover { background:#e67e22; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ProfilDataService - Documentation</h1>
+  <p>Gestion de profils avancée et sécurisée pour Roblox</p>
+</header>
+
+<nav>
+  <a href="#overview">Vue d'ensemble</a>
+  <a href="#structure">Structure</a>
+  <a href="#examples">Exemples</a>
+  <a href="#advanced">Avancé</a>
+  <a href="#signals">Signaux</a>
+  <a href="#methods">Méthodes</a>
+  <a href="#autosave">Autosave & Backup</a>
+  <a href="#download">Téléchargement</a>
+  <a href="#credits">Crédits</a>
+</nav>
+
+<main>
+<section id="overview">
+  <h2>Vue d'ensemble</h2>
+  <p><strong>ProfilDataService</strong> est un système complet pour gérer les profils des joueurs sur Roblox.</p>
+  <ul>
+    <li>Création automatique des profils à l'arrivée des joueurs.</li>
+    <li>Sauvegarde sécurisée avec retry et backup.</li>
+    <li>Support pour leaderstats, inventaire, PV/Stamina, monnaie, etc.</li>
+    <li>MetaTags et GlobalUpdates pour fonctionnalités avancées.</li>
+  </ul>
+</section>
+
+<section id="structure">
+  <h2>Structure d’un profil</h2>
+  <pre>
+profile = {
+  _Player = Player,
+  _Key = "Player_123456",
+  Data = {
+    Stats = { Level = 1, XP = 0, Cash = 0 },
+    Points = { AllPoints = 0, Melee = { Stamina = 50 }, Defense = { Pv = 100 } },
+    Inventory = { Items = {} }
+  },
+  MetaData = { 
+    ProfileCreateTime, 
+    SessionLoadCount, 
+    ActiveSession = {placeId, jobId}, 
+    MetaTags, 
+    MetaTagsLatest 
+  },
+  UserIds = [123456],
+  GlobalUpdates = {...}
+}
+  </pre>
+</section>
+
+<section id="examples">
+  <h2>Exemples pratiques</h2>
+
+  <h3>1. Leaderstats</h3>
+  <pre>
+local ProfilDataService = require(game.ServerScriptService.ProfilDataService)
+
+game.Players.PlayerAdded:Connect(function(player)
+    local profile = ProfilDataService:GetProfile(player)
+    profile:Reconcile({
+        Stats = { Level=1, XP=0, Cash=0 },
+        Points = { AllPoints=0, Melee={Stamina=50}, Defense={Pv=100} }
+    })
+
+    local leaderstats = Instance.new("Folder")
+    leaderstats.Name = "leaderstats"
+    leaderstats.Parent = player
+
+    for statName, value in pairs(profile.Data.Stats) do
+        local stat = Instance.new("IntValue")
+        stat.Name = statName
+        stat.Value = value
+        stat.Parent = leaderstats
+
+        stat:GetPropertyChangedSignal("Value"):Connect(function()
+            profile.Data.Stats[statName] = stat.Value
+            profile:Save()
+        end)
+    end
+end)
+  </pre>
+
+  <h3>2. Inventaire simplifié</h3>
+  <pre>
+local ProfilDataService = require(game.ServerScriptService.ProfilDataService)
+
+game.Players.PlayerAdded:Connect(function(player)
+    local profile = ProfilDataService:GetProfile(player)
+    profile:Reconcile({ Inventory = { Items = {} } })
+
+    local function AddItem(itemName)
+        table.insert(profile.Data.Inventory.Items, itemName)
+        profile:Save()
+    end
+
+    AddItem("Sword")
+    AddItem("Shield")
+end)
+  </pre>
+
+  <h3>3. PV/Stamina</h3>
+  <pre>
+profile.Data.Stats.Level = 5
+profile:Save()
+
+-- Si vous utilisez StaminaPv
+StaminaPv.FillPlayer(player)
+  </pre>
+</section>
+
+<section id="advanced">
+  <h2>Exemples avancés : MetaTags & GlobalUpdates</h2>
+
+  <h3>1. MetaTags</h3>
+  <pre>
+local profile = ProfilDataService:GetProfile(player)
+
+-- Définir un tag pour indiquer un événement
+profile:SetMetaTag("LastQuest", "DragonSlayer")
+print(profile:GetMetaTag("LastQuest")) -- "DragonSlayer"
+
+-- Le MetaTag est sauvegardé automatiquement
+profile:Save()
+  </pre>
+
+  <h3>2. GlobalUpdates</h3>
+  <pre>
+local profile = ProfilDataService:GetProfile(player)
+
+-- Ajouter une update globale (ex: récompense temporaire)
+local updateId = profile.GlobalUpdates:AddActiveUpdate({Reward=100, Expire=os.time()+3600})
+
+-- Vérifier toutes les updates actives
+for _, upd in pairs(profile.GlobalUpdates:GetActiveUpdates()) do
+    print(upd.id, upd.data.Reward)
+end
+
+-- Supprimer une update spécifique
+profile.GlobalUpdates:ClearActiveUpdate(updateId)
+
+-- Supprimer toutes les updates
+profile.GlobalUpdates:ClearAll()
+  </pre>
+</section>
+
+<section id="signals">
+  <h2>Signaux</h2>
+  <ul>
+    <li><code>CorruptionSignal</code> : déclenché si un profil est corrompu</li>
+    <li><code>CriticalStateSignal</code> : problème critique de sauvegarde</li>
+    <li><code>MetaTagsUpdated</code> : déclenché quand un MetaTag est mis à jour</li>
+  </ul>
+</section>
+
+<section id="methods">
+  <h2>Méthodes principales</h2>
+  <ul>
+    <li><code>GetProfile(player)</code> : crée ou récupère un profil joueur</li>
+    <li><code>Release(player)</code> : sauvegarde et libère le profil</li>
+    <li><code>profile:Reconcile(template)</code> : complète les données manquantes</li>
+    <li><code>profile:Save()</code> : ajoute le profil à la file d’attente pour sauvegarde</li>
+    <li><code>profile:OverwriteAsync()</code> : sauvegarde immédiate</li>
+    <li><code>profile:SetMetaTag(tag,value)</code> : ajoute ou modifie un MetaTag</li>
+    <li><code>profile:ClearGlobalUpdates()</code> : supprime toutes les GlobalUpdates</li>
+  </ul>
+</section>
+
+<section id="autosave">
+  <h2>Autosave & Backup</h2>
+  <p>Les profils sont sauvegardés automatiquement toutes les <span class="highlight">60 secondes</span> et lors du départ du joueur.</p>
+  <p>Chaque profil a un backup dans <code>BackupStore</code> pour prévenir la perte de données.</p>
+  <pre>
+local profile = ProfilDataService:GetProfile(player)
+profile:Save() -- sauvegarde manuelle
+  </pre>
+</section>
+
+<section id="download">
+  <h2>Téléchargement</h2>
+  <p>Vous pouvez télécharger la dernière version de <strong>ProfilDataService Ultimate</strong> ici :</p>
+  <a href="https://github.com/TonUsername/ProfilDataServiceUltimate/releases/latest/download/ProfilDataServiceUltimate.zip" class="button">Télécharger le système</a>
+  <p><small>Le fichier contient le module complet et des exemples d'utilisation.</small></p>
+</section>
+
+<section id="credits">
+  <h2>Crédits</h2>
+  <ul>
+    <li>Développement : <strong>Fioskho studio</strong> (créateur du module)</li>
+    <li>Documentation et exemples : Communauté Roblox & contributeurs open-source</li>
+    <li>Site fait part ia</li>
+    <li>Contact & Suivi du projet :
+      <ul>
+        <li><a href="https://discord.gg/TonLienDiscord" target="_blank" style="color:#ff9800;">Discord</a></li>
+        <li><a href="https://github.com/TonUsername/ProfilDataServiceUltimate" target="_blank" style="color:#ff9800;">GitHub</a></li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<footer>
+  &copy; 2026 ProfilDataService - Roblox | Open source et gratuit pour la communauté
+</footer>
+
+<script>
+  document.querySelectorAll("nav a").forEach(a=>{
+    a.addEventListener("click", e=>{
+      e.preventDefault();
+      document.getElementById(a.getAttribute("href").slice(1))
+        .scrollIntoView({behavior:"smooth"});
+    });
+  });
+</script>
+
+</body>
+</html>
